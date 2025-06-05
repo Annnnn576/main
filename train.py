@@ -190,10 +190,6 @@ def label_propagation(args, Wn, L, Y_pred, Y_pred_1, Y_P_train): #L,
 def train(epoch, results, results_1, Y_lp_np):
     model.train()
     losses = 0
-    A = 0
-    A1 = 0
-    B = 0
-    B1 = 0
     print('epoch =', epoch, 'lr = ', optimizer.param_groups[0]['lr'])
     for it, (data, data_aug, train_labels, label_obs, pseudo_label, index) in enumerate(trainloader):
         data, data_aug, label, label_obs = data.to(device), data_aug.to(device), train_labels.to(device), label_obs.to(device)
@@ -213,21 +209,11 @@ def train(epoch, results, results_1, Y_lp_np):
         label_obs = label_obs.to(torch.int64)
         label = label.to(torch.int64)
         est_label = pred_label | label_obs
-        a = ((est_label==1) & (label==1)).sum().item()
-        a1 = (est_label==1).sum().item()
-        A += a
-        A1 += a1
 
         Y_lp = torch.from_numpy(Y_lp_np[index, :]).float().detach().cuda()
         pseudo_label = torch.where(Y_lp > 0.8, torch.tensor(1), torch.tensor(0))
         pseudo_label = pseudo_label.to(torch.int64)
         pseudo_label = pseudo_label | label_obs
-        b = ((pseudo_label==1) & (label==1)).sum().item()
-        b1 = (pseudo_label == 1).sum().item()
-        B += b
-        B1 += b1
-        # results[index.cpu().detach().numpy().tolist()] = pseudo_label.cpu()
-        # loss
         if epoch > 2:
             loss_supcon = criterion(feat, feat1, est_label)
         else:
@@ -240,18 +226,12 @@ def train(epoch, results, results_1, Y_lp_np):
             loss_ce_1 = criterion_ce(pred_1, label_obs)
 
         loss = 0.5*loss_supcon + loss_ce + loss_ce_1
-        # loss = loss_ce + loss_ce_1
         loss.backward()
         optimizer.step()
         losses += loss.item()
 
-
     loss = losses / len(trainloader)
-    # trainloader.dataset.label_update(results)
-    print('pred is {}, A is {}, A1 is {}'.format(A/A1, A, A1))
-    print('lp is {}, B is {}, B1 is {}'.format(B/B1, B, B1))
-
-    return loss, loss_ce, results, results_1, feats, feats_1#, loss_supcon
+    return loss, loss_ce, results, results_1, feats, feats_1
 
 def valid():
     model.eval()
@@ -267,14 +247,11 @@ def valid():
         pred_list.append(pred)
         label_list.append(label)
 
-    # 将列表转换为 NumPy 数组
     pred_list = np.concatenate(pred_list, axis=0)
     label_list = np.concatenate(label_list, axis=0)
 
     metric = compute_metrics(pred_list, label_list)
-
     print("===> Valid. avg_pre: {:.4f} | rec_at_3: {:.4f}".format(metric['map'], metric['rec_at_3']))#/id
-
 
 def compute_metrics(y_pred, y_true):
     '''
